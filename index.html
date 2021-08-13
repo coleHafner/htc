@@ -8,11 +8,11 @@
 
   <script type="text/javascript">
     const legs = [
-      [1, 5.44, 'VH'], [2, 5, 64, 'H'], [3, 4.66, 'E'], [4, 7.18, 'M'], [5, 6.05, 'VH'], [6, 7.10, 'H'],
+      [1, 5.44, 'VH'], [2, 5.64, 'H'], [3, 4.66, 'E'], [4, 7.18, 'M'], [5, 6.05, 'VH'], [6, 7.10, 'H'],
       [7, 5.25, 'M'], [8, 6, 'E'], [9, 5.38, 'M'], [10, 5.54, 'M'], [11, 5, 'E'], [12, 6.26, 'M'],
       [13, 5.21, 'E'], [14, 6.04, 'M'], [15, 7.25, 'H'], [16, 3.92, 'E'], [17, 5.32, 'M'], [18, 4.13, 'H'],
       [19, 5.89, 'VH'], [20, 5.75, 'VH'], [21, 5.06, 'M'], [22, 6.70, 'H'], [23, 4.23, 'E'], [24, 4.87, 'E'],
-      [25, 3.8, 'E'], [26, 5.65, 'H'], [27, 6.36, 'M'], [28, 3, 83, 'E'], [29, 5.97, 'VH'], [30, 5.32, 'M'],
+      [25, 3.8, 'E'], [26, 5.65, 'H'], [27, 6.36, 'M'], [28, 3.83, 'E'], [29, 5.97, 'VH'], [30, 5.32, 'M'],
       [31, 3.96, 'M'], [32, 4.2, 'M'], [33, 7.72, 'H'], [34, 4.12, 'E'], [35, 7.07, 'H'], [36, 5.03, 'M'],
     ];
 
@@ -39,9 +39,27 @@
     }
 
     const getStartTime = (legNum, startTime, finishTime) => {
-      const avgLegTime = finishTime / totalLegs;
-      const timeFromStart = (legNum - 1) * avgLegTime;
-      const totalTime = timeFromStart + startTime;
+      const avgMileTime = (finishTime * 60)/milesOnCourse;
+      let timeFromStart = 0;
+
+      const difficultyMap = {
+        'E': {factor: .91, name: 'Easy'},
+        'M': {factor: 1, name: 'Moderate'},
+        'H': {factor: 1.09, name: 'Hard'},
+        'VH': {factor: 1.17, name: 'Very Hard'},
+      };
+
+      const calcDuration = (leg, avgMileTime) => {
+        const [ _, distance, difficulty ] = leg;
+        return (avgMileTime * distance) * difficultyMap[difficulty].factor;
+      }
+
+      for (let i = 1; i < legNum; i++) {
+        const estTime = calcDuration(legs[i-1], avgMileTime);
+        timeFromStart += estTime;
+      }
+
+      const totalTime = (timeFromStart/60) + startTime;
 
       let day = 'Friday';
       let finalStartTime = totalTime;
@@ -51,12 +69,12 @@
         finalStartTime = totalTime - hoursInDay;
       }
 
-      const {
-        hours,
-        mins,
-        meridiem,
-        prettyTime,
-      } = makePrettyTime(finalStartTime);
+      if (totalTime >= (hoursInDay * 2)) {
+        day = 'Sunday';
+        finalStartTime = totalTime - (hoursInDay * 2);
+      }
+
+      const { prettyTime, hours } = makePrettyTime(finalStartTime);
 
       const flags = {
         nightRun: false,
@@ -66,15 +84,24 @@
         flags.nightRun = true;
       }
 
+      const leg = legs[legNum -1];
+      const [ _, distance, difficulty ] = leg;
+      const duration = calcDuration(leg, avgMileTime);
+      const dMins = Math.floor(duration);
+      const dSecs = Math.floor(duration%dMins * 60);
+      const prettyDuration = `${dMins}:${dSecs < 10 ? `0${dSecs}` : dSecs}`;
+
       return {
         day,
-        hours,
-        mins,
-        meridiem,
-        prettyTime,
+        distance, 
+        difficulty: difficultyMap[difficulty].name,
+        duration: prettyDuration,
+        durationMinutes: duration,
+        startTime: prettyTime,
+        startTimeHours: finalStartTime,
         legNum,
         flags,
-        desc: `Leg #${legNum} will start @ ~${prettyTime} on ${day} ${flags.nightRun ? '(bring a headlamp!)' : ''}`,
+        // desc: `Leg #${legNum}: ${distance} mi - ${difficultyMap[difficulty].name}. Est time: ${prettyDuration}. Start Time: ~${prettyTime} on ${day} ${flags.nightRun ? '(bring a headlamp!)' : ''}`,
       }
 
     }
@@ -111,11 +138,52 @@
       startTimeSelector.val(defaultStartTime);
 
       const renderStartTimes = (startTimes) => {
+        const totalDistance = parseFloat(startTimes.reduce((accum, current) => accum + current.distance, 0)).toFixed(2);
+        const startTime = `${startTimes[0].day} @ ${startTimes[0].startTime}`;
+
+        const totalDurationMins = startTimes.reduce((accum,st) => accum + st.durationMinutes, 0);
+        const ttHours = totalDurationMins/60;
+        const fullHrs = Math.floor(ttHours);
+        const ttMins = ttHours%fullHrs * 60
+        const fullMins = Math.floor(ttMins);
+        const ttSecs = Math.floor(ttMins%fullMins * 60);
+        const totalTime = `${fullHrs === 0 ? '00' : fullHrs}:${fullMins < 10 ? `0${fullMins}` : fullMins}:${ttSecs < 10 ? `0${ttSecs}` : ttSecs}`;
+
+        const end = startTimes[startTimes.length - 1];
+        let endDay = end.day;
+        let endTimeHours = end.startTimeHours + (end.durationMinutes/60);
+        if (endTimeHours > hoursInDay) {
+          endTimeHours -= hoursInDay;
+          endDay = endDay === 'Friday' ? 'Saturday' : 'Sunday';
+        }
+        const endTime = `${endDay} @ ${makePrettyTime(endTimeHours).prettyTime}`;
+        
+        const avgPaceMins = totalDurationMins/totalDistance;
+        const pMins = Math.floor(avgPaceMins);
+        const pSecs = Math.floor(avgPaceMins%pMins * 60);
+        const avgPace = `${pMins}:${pSecs < 10 ? `0${pSecs}` : pSecs}`
+
         notepad.html(`
-    <p>Start: ${startTimes[0].day} - ${startTimes[0].prettyTime}</p>
-    <p>End: ${startTimes[startTimes.length - 1].day} - ${startTimes[startTimes.length - 1].prettyTime}
-    <ul><li><p>${startTimes.map(st => st.desc).join('</p></li><li><p>')}</li></ul>
-    `);
+          <p>Start: ${startTime}</p>
+          <p>End: ${endTime}</p>
+          <p>Total Distance: ${totalDistance} mi</p>
+          <p>Total Time: ${totalTime}</p>
+          <p>Avg Pace: ${avgPace}</p>
+          <table>
+            <tr>
+              <th>Leg</th>
+              <th>Day</th>
+              <th>Time</th>
+              <th>Distance</th>
+              <th>Difficulty</th>
+              <th>Duration</th>
+              <th>Headlamp?</th>
+            </tr>
+            <tr>
+              ${startTimes.map(st => `<td>${st.legNum}</td><td>${st.day}</td><td>${st.startTime}</td><td>${st.distance}</td><td>${st.difficulty}</td><td>${st.duration}</td><td>${st.flags.nightRun ? 'Yes' : 'No'}</td>`).join('</tr><tr>')}
+            </tr>
+          </table>
+        `);
       };
 
       const maybeShowStartTimes = () => {
