@@ -4,9 +4,13 @@
   <title>HTC Start Time Calculator</title>
 
   <style type="text/css">
-  table tr.row.even td {
-    background-color: #ccc;
-  }
+    table tr.row.even td {
+      background-color: #ccc;
+    }
+
+    label:hover {
+      cursor: 'pointer';
+    }
   </style>
 
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"
@@ -20,6 +24,12 @@
       [19, 5.89, 'VH'], [20, 5.75, 'VH'], [21, 5.06, 'M'], [22, 6.70, 'H'], [23, 4.23, 'E'], [24, 4.87, 'E'],
       [25, 3.8, 'E'], [26, 5.65, 'H'], [27, 6.36, 'M'], [28, 3.83, 'E'], [29, 5.97, 'VH'], [30, 5.32, 'M'],
       [31, 3.96, 'M'], [32, 4.2, 'M'], [33, 7.72, 'H'], [34, 4.12, 'E'], [35, 7.07, 'H'], [36, 5.03, 'M'],
+    ];
+
+    const runners = [
+      [1, '', 'Tim'], [2, '8:00', 'Amanda'], [3, '', 'Jonathan' ], [4, '', 'Elizabeth'],
+      [5, '7:52', 'Cole' ], [6, '7:15', 'Michael'], [7, '', 'Ivy' ], [8, '9:00', 'Chris'],
+      [9, '6:55', 'Dave'], [10, '', 'Emma'], [11, '', 'Rachel'], [12, '8:00', 'Sean']
     ];
 
     const hoursInDay = 24;
@@ -57,7 +67,7 @@
       };
     }
 
-    const getStartTime = (legNum, startTime, finishTime) => {
+    const getStartTime = (legNum, startTime, finishTime, paceType) => {
       const avgMileTime = (finishTime * 60) / milesOnCourse;
       let timeFromStart = 0;
 
@@ -73,8 +83,34 @@
         return (avgMileTime * distance) * difficultyMap[difficulty].factor;
       }
 
+      const getAvgMileTimeForLeg = (leg, defaultAvgMileTime) => {
+        const [ legNum ] = leg;
+        let avgToUse = defaultAvgMileTime;
+          
+        if (paceType === 'PerRunner') {
+          let runnerKey = legNum;
+
+          if (legNum > 24) {
+            runnerKey = legNum - 24;
+          }else if (legNum > 12) {
+            runnerKey = legNum - 12;
+          }
+
+          const [_, pace, name] = runners[runnerKey - 1];
+
+          if (pace) {
+            const [ mins, secs ] = pace.split(':');
+            avgToUse = parseInt(mins) + (secs === '00' ? 0 : parseInt(secs)/60);
+          }
+        }
+
+        return avgToUse;
+      };
+
       for (let i = 1; i < legNum; i++) {
-        const estTime = calcDuration(legs[i - 1], avgMileTime);
+        const leg = legs[i-1];
+        const avgToUse = getAvgMileTimeForLeg(leg, avgMileTime);
+        const estTime = calcDuration(leg, avgToUse);
         timeFromStart += estTime;
       }
 
@@ -105,7 +141,8 @@
 
       const leg = legs[legNum - 1];
       const [_, distance, difficulty] = leg;
-      const duration = calcDuration(leg, avgMileTime);
+      const avgToUse = getAvgMileTimeForLeg(leg, avgMileTime)
+      const duration = calcDuration(leg, avgToUse);
       const prettyDuration = makePrettyPace(duration); // `${dMins}:${dSecs < 10 ? `0${dSecs}` : dSecs}`;
 
       return {
@@ -124,39 +161,104 @@
     }
 
     $(document).ready(() => {
-      const goButton = $('#go');
-      const notepad = $('#notepad');
-      const showAllButton = $('#showAll');
-      const legNumSelector = $('#legSelector');
-      const startTimeSelector = $('#startTime');
-      const finishTimeSelector = $('#predictedFinishTime');
+      const $goButton = $('#go');
+      const $notepad = $('#notepad');
+      const $showAllButton = $('#showAll');
+      const $legNumSelector = $('#legSelector');
+      const $startTimeSelector = $('#startTime');
+      const $finishTimeSelector = $('#predictedFinishTime');
+
+      const $paceRowTeamAvg = $('#paceRowTeamAvg');
+      const $paceRowPerRunner = $('#paceRowPerRunner');
+      const $paceTypeInput = $('input[name="paceType"]:radio');
+      const $runnerPaces = $('#runnerPaces');
+
+      const maybeShowStartTimes = () => {
+        const paceType = $paceTypeInput.filter(':checked').val();
+        const startTime = parseFloat($startTimeSelector.val());
+        const finishTime = $finishTimeSelector.val();
+        const legNum = parseInt($legNumSelector.val());
+
+        if (!startTime || !finishTime) {
+          return;
+        }
+
+        let selectedLegs = !legNum
+          ? Array(totalLegs).fill().map((val, index) => index + 1)
+          : [legNum, legNum + 12, legNum + 24];
+
+        let startTimes = selectedLegs.map(i =>
+          getStartTime(i, startTime, finishTime, paceType)
+        )
+
+        renderStartTimes(startTimes);
+      }
 
       // populate selectors
       for (let i = 1; i <= 12; i++) {
-        legNumSelector.append(`<option value="${i}">${i}</option>`);
+        $legNumSelector.append(`<option value="${i}">${i}</option>`);
       }
 
       for (let i = 15; i <= 44; i++) {
         const avgPaceAsDecimal = (i * 60) / milesOnCourse;
         const pace = makePrettyPace(avgPaceAsDecimal, false, false);
-        finishTimeSelector.append(`<option value="${i}">${i} (${pace}/mi pace)</option>`);
+        $finishTimeSelector.append(`<option value="${i}">${i} (${pace}/mi pace)</option>`);
       }
 
       for (let i = 2; i <= 17; i += .25) {
         const {
           prettyTime
         } = makePrettyTime(i);
-        startTimeSelector.append(`<option value="${i}">${prettyTime}</option>`);
+        $startTimeSelector.append(`<option value="${i}">${prettyTime}</option>`);
       }
 
+      const rows = [];
+      for (let i = 1; i <= 12; i++) {
+        const [legNum, pace, name] = runners[i-1];
+        rows.push(`
+        <tr>
+          <td>
+            <label for="runnerPace${i}">Runner #${legNum}</label>
+            <input id="runnerPace${i}" name="runnerPace${i}" type="text" value="${pace}" />
+          </td>
+        </tr>
+        `);
+      }
+
+      $runnerPaces.html(`<table>${rows.join(' ')}</table>`);
+
       // set defaults
-      finishTimeSelector.val(defaultFinishTime);
-      startTimeSelector.val(defaultStartTime);
+      $finishTimeSelector.val(defaultFinishTime);
+      $startTimeSelector.val(defaultStartTime);
+
+      // register listeners
+      $startTimeSelector.on('change', maybeShowStartTimes);
+      $finishTimeSelector.on('change', maybeShowStartTimes);
+      $legNumSelector.on('change', maybeShowStartTimes);
+      $paceTypeInput.on('change', () => {
+        const paceType = $paceTypeInput.filter(':checked').val();
+        $paceRowPerRunner.hide();
+        $paceRowTeamAvg.hide();
+
+        if (paceType === 'PerRunner') {
+          $paceRowPerRunner.show();
+        }else {
+          $paceRowTeamAvg.show();
+        }
+
+        maybeShowStartTimes();
+      })
+
+      $showAllButton.on('click', (event) => {
+        event.preventDefault();
+        $legNumSelector.val('');
+        maybeShowStartTimes()
+      });
 
       const renderStartTimes = (startTimes) => {
         const totalDistance = parseFloat(startTimes.reduce((accum, current) => accum + current.distance, 0)).toFixed(2);
         const totalDurationMins = startTimes.reduce((accum, st) => accum + st.durationMinutes, 0);
-        
+
         const end = startTimes[startTimes.length - 1];
         let endDay = end.day;
         let endTimeHours = end.startTimeHours + (end.durationMinutes / 60);
@@ -174,7 +276,7 @@
         let rows = '';
 
         startTimes.forEach((st, index) => rows += `
-          <tr class="row ${index%2 === 0 ? 'even' : 'odd'}">
+          <tr class="row ${index % 2 === 0 ? 'even' : 'odd'}">
             <td>${st.legNum}</td>
             <td>${st.day}</td>
             <td>${st.startTime}</td>
@@ -185,7 +287,7 @@
           </tr>`
         );
 
-        notepad.html(`
+        $notepad.html(`
           <p>Total Distance: ${totalDistance} mi</p>
           <p>Est. Start: ${startTime}</p>
           <p>Est. End: ${endTime}</p>
@@ -205,41 +307,7 @@
           </table>
         `);
       };
-
-      const maybeShowStartTimes = () => {
-        const startTime = parseFloat(startTimeSelector.val());
-        const finishTime = finishTimeSelector.val();
-        const legNum = parseInt(legNumSelector.val());
-
-        if (!startTime || !finishTime) {
-          return;
-        }
-
-        let selectedLegs = !legNum
-          ? Array(totalLegs).fill().map((val, index) => index + 1)
-          : [legNum, legNum + 12, legNum + 24];
-
-        let startTimes = selectedLegs.map(i =>
-          getStartTime(i, startTime, finishTime)
-        )
-
-        renderStartTimes(startTimes);
-      }
-
-      // register listeners
-      startTimeSelector.on('change', maybeShowStartTimes);
-      finishTimeSelector.on('change', maybeShowStartTimes);
-      legNumSelector.on('change', maybeShowStartTimes);
-
-      showAllButton.on('click', (event) => {
-        event.preventDefault();
-        legNumSelector.val('');
-        maybeShowStartTimes()
-      });
     })
-
-
-
   </script>
 </head>
 
@@ -273,12 +341,31 @@
     </tr>
     <tr>
       <td align="right">
+        <label>Pace Type</label>
+      </td>
+      <td>
+        <input type="radio" name="paceType" value="TeamAvg" id="paceTypeTeamAvg" checked />
+        <label for="paceTypeTeamAvg">AFT/Est Finish</label>
+        <input type="radio" name="paceType" value="PerRunner" id="paceTypePerRunner" />
+        <label for="paceTypePerRunner">Per Runner</label>
+      </td>
+    </tr>
+    <tr id="paceRowTeamAvg">
+      <td align="right">
         <label>AFT/Est Finish (hrs)</label>
       </td>
       <td>
         <select id="predictedFinishTime">
           <option value="">Select Finish Time</option>
         </select>
+      </td>
+    </tr>
+    <tr id="paceRowPerRunner" style="display:none;">
+      <td align="right" valign="top">
+        <label>Per runner (mins:secs)</label>
+      </td>
+      <td id="runnerPaces">
+        
       </td>
     </tr>
     <tr>
