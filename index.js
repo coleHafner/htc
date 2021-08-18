@@ -1,9 +1,15 @@
+const paceTypes = {
+  TEAM: { value: 'TEAM', text: 'Team' },
+  RUNNER: { value: 'RUNNER', text: 'Runner' },
+};
+
 const app = new Vue({
   el: '#app',
   data: {
-    paceType: 'AFT',
+    paceType: paceTypes.TEAM.value,
+    paceTypes,
 
-    startLeg: '',
+    startLeg: 'all',
     startLegs: [],
 
     finishTime: 27,
@@ -12,12 +18,10 @@ const app = new Vue({
     startTime: 14.5,
     startTimes: [],
 
-    runners: [
-      [1, '', 'Tim'], [2, '8:00', 'Amanda'], [3, '', 'Jonathan'], [4, '', 'Elizabeth'],
-      [5, '7:52', 'Cole'], [6, '7:15', 'Michael'], [7, '', 'Ivy'], [8, '9:00', 'Chris'],
-      [9, '6:55', 'Dave'], [10, '', 'Emma'], [11, '', 'Rachel'], [12, '8:00', 'Sean']
-    ],
+    runnerTimes: [],
+
     static: {
+      runnersPerRow: 3,
       hoursInDay: 24,
       milesOnCourse: 200,
       totalLegs: 36,
@@ -29,6 +33,11 @@ const app = new Vue({
         [25, 3.8, 'E'], [26, 5.65, 'H'], [27, 6.36, 'M'], [28, 3.83, 'E'], [29, 5.97, 'VH'], [30, 5.32, 'M'],
         [31, 3.96, 'M'], [32, 4.2, 'M'], [33, 7.72, 'H'], [34, 4.12, 'E'], [35, 7.07, 'H'], [36, 5.03, 'M'],
       ],
+      runners: [
+        [1, '', 'Tim'], [2, '8:00', 'Amanda'], [3, '', 'Jonathan'], [4, '10:00', 'Elizabeth'],
+        [5, '7:52', 'Cole'], [6, '7:15', 'Michael'], [7, '', 'Ivy'], [8, '9:00', 'Chris'],
+        [9, '', 'Dave'], [10, '8:45', 'Emma'], [11, '', 'Rachel'], [12, '8:00', 'Sean']
+      ],
       difficulty: {
         'E': { factor: .91, name: 'Easy' },
         'M': { factor: 1, name: 'Moderate' },
@@ -39,19 +48,19 @@ const app = new Vue({
   },
   created: function () {
     // finish times
-    this.finishTimes.push({value: '', text: 'Est. Finish Time'});
+    this.finishTimes.push({ value: '', text: 'Est. Finish Time' });
     for (let i = 15; i <= 44; i++) {
       const avgPaceAsDecimal = (i * 60) / this.static.milesOnCourse;
       const pace = this.makePrettyPace(avgPaceAsDecimal, false, false);
       this.finishTimes.push({
         value: i,
-        text: `${i} (${pace}/mi pace)`,
+        text: `${i} hrs (${pace}/mi)`,
       });
     }
 
     // legs
-    this.startLegs.push({value: '', text: 'Start Leg'});
-    this.startLegs.push({value: 'all', text: 'All'});
+    this.startLegs.push({ value: '', text: 'Start Leg' });
+    this.startLegs.push({ value: 'all', text: 'All' });
     for (let i = 1; i <= 12; i++) {
       this.startLegs.push({
         value: i,
@@ -60,17 +69,34 @@ const app = new Vue({
     }
 
     // start times
-    this.startTimes.push({value: '', text: 'Team Start Time'});
+    this.startTimes.push({ value: '', text: 'Team Start Time' });
     for (let i = 2; i <= 17; i += .25) {
       this.startTimes.push({
         value: i,
         text: this.makePrettyTime(i).prettyTime,
       })
     }
+
+    // runner times
+    this.static.runners.forEach((r, index) => this.runnerTimes.push({startLeg: r[0], pace: r[1]}));
   },
   computed: {
-    times: function() {
-      if (!this.startLeg || !this.startTime || !this.finishTime) {
+    teamPace: function() {
+      return (this.finishTime * 60) / this.static.milesOnCourse;
+    },
+    teamPacePretty: function() {
+      return this.makePrettyPace(this.teamPace, false, false);
+    },
+    startLegPretty: function() {
+      return this.startLeg !== 'all'
+        ? this.startLeg
+        : 'All';
+    },
+    startTimePretty: function() {
+      return this.makePrettyTime(this.startTime).prettyTime;
+    },
+    times: function () {
+      if (!this.startLeg || !this.startTime || !this.finishTime || !this.paceType) {
         return [];
       }
 
@@ -78,16 +104,41 @@ const app = new Vue({
         ? Array(this.static.totalLegs).fill().map((val, index) => index + 1)
         : [this.startLeg, this.startLeg + 12, this.startLeg + 24];
 
-      const times = selectedLegs.map(i => 
-        this.getStartTime(
-          i,
-          this.startTime,
-          this.finishTime,
-          this.paceType
-        )
+      const times = selectedLegs.map(i =>
+        this.getStartTime(i)
       );
 
       return times;
+    },
+    summary: function () {
+      if (!this.times.length) {
+        return null;
+      }
+
+      const totalDistance = parseFloat(this.times.reduce((accum, current) => accum + current.distance, 0)).toFixed(2);
+      const totalDurationMins = this.times.reduce((accum, st) => accum + st.durationMinutes, 0);
+      const end = this.times[this.times.length - 1];
+
+      let endDay = end.day;
+      let endTimeHours = end.startTimeHours + (end.durationMinutes / 60);
+     
+      if (endTimeHours > this.static.hoursInDay) {
+        endTimeHours -= this.static.hoursInDay;
+        endDay = endDay === 'Fri' ? 'Sat' : 'Sun';
+      }
+
+      const startTime = `${this.times[0].day} - ${this.times[0].startTime}`;
+      const endTime = `${endDay} - ${this.makePrettyTime(endTimeHours).prettyTime}`;
+      const totalTime = this.makePrettyPace(totalDurationMins);
+      const avgPaceMins = totalDurationMins / totalDistance;
+      const avgPace = this.makePrettyPace(avgPaceMins, false, false);
+
+      return {
+        startTime,
+        endTime,
+        totalTime,
+        avgPace,
+      };
     }
   },
   methods: {
@@ -106,65 +157,62 @@ const app = new Vue({
     makePrettyTime: function (startTime) {
       const hours = Math.floor(startTime);
       const mins = hours > 0 ? Math.floor(startTime % hours * 60) : 0;
-      const meridiem = hours > 12 ? 'PM' : 'AM';
+      const meridiem = hours >= 12 ? 'PM' : 'AM';
       const prettyTime = `${hours > 12 ? hours - 12 : hours === 0 ? '12' : hours}:${mins < 10 ? `0${mins}` : mins} ${meridiem}`;
 
-      return {hours, prettyTime};
+      return { hours, prettyTime };
     },
-    getStartTime: function (legNum, paceType) {
-      const avgMileTime = (this.finishTime * 60) / this.static.milesOnCourse;
-      let timeFromStart = 0;
+    calcDuration: function (leg, avgMilePace) {
+      const [_, distance, difficulty] = leg;
+      return (avgMilePace * distance) * this.static.difficulty[difficulty].factor;
+    },
+    getAvgMileTimeForLeg: function (leg) {
+      const [legNum] = leg;
+      const teamAvgMileTime = this.teamPace;
+      let chosenAvg = teamAvgMileTime;
 
-      const difficultyMap = this.static.difficulty;
+      if (this.paceType === this.paceTypes.RUNNER.value) {
+        let runnerKey = legNum;
 
-      const calcDuration = (leg, avgMileTime) => {
-        const [_, distance, difficulty] = leg;
-        return (avgMileTime * distance) * difficultyMap[difficulty].factor;
-      }
-
-      const getAvgMileTimeForLeg = (leg, defaultAvgMileTime) => {
-        const [legNum] = leg;
-        let avgToUse = defaultAvgMileTime;
-
-        if (paceType === 'PerRunner') {
-          let runnerKey = legNum;
-
-          if (legNum > 24) {
-            runnerKey = legNum - 24;
-          } else if (legNum > 12) {
-            runnerKey = legNum - 12;
-          }
-
-          const [_, pace, name] = runners[runnerKey - 1];
-
-          if (pace) {
-            const [mins, secs] = pace.split(':');
-            avgToUse = parseInt(mins) + (secs === '00' ? 0 : parseInt(secs) / 60);
-          }
+        if (legNum > 24) {
+          runnerKey = legNum - 24;
+        } else if (legNum > 12) {
+          runnerKey = legNum - 12;
         }
 
-        return avgToUse;
-      };
+        const pace = this.runnerTimes[runnerKey - 1].pace;
+
+        if (pace) {
+          const [mins, secs] = pace.split(':');
+          const runnerAvgMile = parseInt(mins) + (secs === '00' ? 0 : parseInt(secs) / 60);
+          chosenAvg = runnerAvgMile;
+        }
+      }
+
+      return chosenAvg;
+    },
+    getStartTime: function (legNum) {
+      let timeFromStart = 0;
 
       for (let i = 1; i < legNum; i++) {
         const leg = this.static.legs[i - 1];
-        const avgToUse = getAvgMileTimeForLeg(leg, avgMileTime);
-        const estTime = calcDuration(leg, avgToUse);
+        const avgMilePace = this.getAvgMileTimeForLeg(leg);
+        const estTime = this.calcDuration(leg, avgMilePace);
         timeFromStart += estTime;
       }
 
       const totalTime = (timeFromStart / 60) + this.startTime;
 
-      let day = 'Friday';
+      let day = 'Fri';
       let finalStartTime = totalTime;
 
       if (totalTime >= this.static.hoursInDay) {
-        day = 'Saturday';
+        day = 'Sat';
         finalStartTime = totalTime - this.static.hoursInDay;
       }
 
       if (totalTime >= (this.static.hoursInDay * 2)) {
-        day = 'Sunday';
+        day = 'Sun';
         finalStartTime = totalTime - (this.static.hoursInDay * 2);
       }
 
@@ -180,14 +228,14 @@ const app = new Vue({
 
       const leg = this.static.legs[legNum - 1];
       const [_, distance, difficulty] = leg;
-      const avgToUse = getAvgMileTimeForLeg(leg, avgMileTime)
-      const duration = calcDuration(leg, avgToUse);
+      const avgToUse = this.getAvgMileTimeForLeg(leg)
+      const duration = this.calcDuration(leg, avgToUse);
       const prettyDuration = this.makePrettyPace(duration);
 
       return {
         day,
         distance,
-        difficulty: difficultyMap[difficulty].name,
+        difficulty: this.static.difficulty[difficulty].name,
         duration: prettyDuration,
         durationMinutes: duration,
         startTime: prettyTime,
