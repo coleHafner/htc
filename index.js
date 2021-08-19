@@ -23,7 +23,7 @@ const app = new Vue({
     static: {
       runnersPerRow: 3,
       hoursInDay: 24,
-      milesOnCourse: 200,
+      milesOnCourse: 196.9,
       totalLegs: 36,
       legs: [
         [1, 5.44, 'VH'], [2, 5.64, 'H'], [3, 4.66, 'E'], [4, 7.18, 'M'], [5, 6.05, 'VH'], [6, 7.10, 'H'],
@@ -140,6 +140,7 @@ const app = new Vue({
       const avgPace = this.makePrettyPace(avgPaceMins, false, false);
 
       return {
+        totalDistance,
         startTime,
         endTime,
         totalTime,

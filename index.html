@@ -125,20 +125,20 @@
 
         <b-row>
           <b-col>
-            <b-form-group label="Est. Start" label-class="font-weight-bold" label-for="startTime">
+            <b-form-group label="1st Leg Start" label-class="font-weight-bold" label-for="startTime">
               <div id="startTime"> {{ summary.startTime }} </div>
             </b-form-group>
           </b-col>
 
           <b-col>
-            <b-form-group label="Est. End" label-class="font-weight-bold" label-for="endTime">
+            <b-form-group label="Last Leg End" label-class="font-weight-bold" label-for="endTime">
               <div id="endTime"> {{ summary.endTime }} </div>
             </b-form-group>
           </b-col>
 
           <b-col>
             <b-form-group label="Est. Duration" label-class="font-weight-bold" label-for="duration">
-              <div id="duration"> {{ summary.totalTime }} ({{ summary.avgPace }}/mi) </div>
+              <div id="duration"> {{ summary.totalDistance }} mi | {{ summary.totalTime }} ({{ summary.avgPace }}/mi) </div>
             </b-form-group>
           </b-col>
 
