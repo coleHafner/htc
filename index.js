@@ -13,9 +13,8 @@ const app = new Vue({
     startLegs: [],
 
     finishTime: 27.083285,
-    finishTimes: [],
 
-    startTime: 14.5,
+    startTime: 14.416170000000019,
     startTimes: [],
 
     runnerTimes: [],
@@ -47,17 +46,6 @@ const app = new Vue({
     },
   },
   created: function () {
-    // finish times
-    this.finishTimes.push({ value: '', text: 'Est. Finish Time' });
-    for (let i = 15; i <= 44; i++) {
-      const avgPaceAsDecimal = (i * 60) / this.static.milesOnCourse;
-      const pace = this.makePrettyPace(avgPaceAsDecimal, false, false);
-      this.finishTimes.push({
-        value: i,
-        text: `${i} hrs (${pace}/mi)`,
-      });
-    }
-
     // legs
     this.startLegs.push({ value: '', text: 'Start Leg' });
     this.startLegs.push({ value: 'all', text: 'All' });
@@ -70,7 +58,7 @@ const app = new Vue({
 
     // start times
     this.startTimes.push({ value: '', text: 'Team Start Time' });
-    for (let i = 2; i <= 17; i += .25) {
+    for (let i = 2; i <= 15.09; i += .08333) {
       this.startTimes.push({
         value: i,
         text: this.makePrettyTime(i).prettyTime,
