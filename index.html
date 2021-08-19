@@ -7,20 +7,32 @@
 
   <link type="text/css" rel="stylesheet" href="https://unpkg.com/bootstrap@4.1.3/dist/css/bootstrap.min.css" />
   <link type="text/css" rel="stylesheet" href="https://unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.min.css" />
+
+  <style type="text/css">
+    [v-cloak] {
+      display: none;
+    }
+  </style>
 </head>
 
 <body>
 
-  <div id="app">
-    <b-jumbotron header="HTC Time Calculator" lead="Start time calculator for the HTC relay" bg-variant="info" fluid>
+  <div id="app" v-cloak>
+    <b-jumbotron 
+      header="HTC Time Calculator" 
+      lead="Start time calculator for the HTC relay" 
+      bg-variant="success" 
+      text-variant="light" 
+      fluid
+    >
     </b-jumbotron>
 
-    <b-sidebar id="sidebar" title="Settings" width="60%" backdrop style="max-width: 500px;">
+    <b-sidebar id="sidebar" title="Settings" width="60%" backdrop>
       <b-container>
         <b-form>
           <b-row>
             <b-col>
-              <b-form-group label="Runner(s)" label-for="startLegSelector">
+              <b-form-group label="Runner" label-class="font-weight-bold" label-for="startLegSelector">
                 <b-form-select id="startLegSelector" :options="startLegs" v-model="startLeg"> </b-form-select>
               </b-form-group>
             </b-col>
@@ -28,12 +40,12 @@
 
           <b-row>
             <b-col>
-              <b-form-group label="Race Start" label-for="startTimeSelector">
+              <b-form-group label="Race Start" label-class="font-weight-bold" label-for="startTimeSelector">
                 <b-form-select id="startTimeSelector" :options="startTimes" v-model="startTime"></b-form-select>
               </b-form-group>
             </b-col>
             <b-col>
-              <b-form-group label="Pace Type" label-for="paceType">
+              <b-form-group label="Pace" label-class="font-weight-bold" label-for="paceType">
                 <b-form-radio-group id="paceType" v-model="paceType" :options="paceTypes" name="paceTypeOptions">
                 </b-form-radio-group>
 
@@ -43,16 +55,16 @@
 
           <b-row v-if="paceType === paceTypes.TEAM.value">
             <b-col>
-              <b-form-group label="Est. Team Finish (AFT)" label-for="finishTimeSelector">
-                <b-form-select id="finishTimeSelector" :options="finishTimes" v-model="finishTime"> </b-form-select>
-              </b-form-group>
+              <label for="finishTimeSelector" class="font-weight-bold">Est. Team Finish (AFT)</label>
+              <b-form-input v-model="finishTime" id="finishTimeSelector" type="range" min="15" max="44" step=".083333"></b-form-input>
+              {{ finishTimePretty }}
             </b-col>
           </b-row>
 
-          <div v-if="paceType === paceTypes.RUNNER.value" class="shadow mb-5 p-2 bg-white rounded">
+          <div v-if="paceType === paceTypes.RUNNER.value" class="shadow mb-5 p-2 bg-white">
             <b-row v-for="n in runnerTimes.length/static.runnersPerRow">
 
-              <b-col v-for="runner in runnerTimes.slice().splice((static.runnerPerRow * (n-1)), static.runnersPerRow)">
+              <b-col v-for="runner in runnerTimes.slice().splice((static.runnersPerRow * (n-1)), static.runnersPerRow)">
                 <b-form-group :label="'Runner ' + runner.startLeg" :label-for="'runner' + runner.startLeg ">
                   <b-form-input :id="'runner' + runner.startLeg" :placeholder="teamPacePretty + ' (team avg)'" v-model="runnerTimes[runner.startLeg - 1].pace">
                   </b-form-input>
@@ -61,7 +73,7 @@
             </b-row>
           </div>
 
-          <b-button class="float-right" v-b-toggle.sidebar variant="outline-info">
+          <b-button class="float-right" v-b-toggle.sidebar variant="outline-primary">
             <b-icon icon="check2"></b-icon> Done
           </b-button>
 
@@ -71,27 +83,42 @@
     </b-sidebar>
 
     <b-container fluid class="mb-5">
-      <b-button v-b-toggle.sidebar variant="outline-info">
+      <b-button v-b-toggle.sidebar variant="outline-primary">
         <b-icon icon="gear-fill"></b-icon> Settings
       </b-button>
-      <div v-if="summary" class="shadow p-3 mb-5 mt-5 bg-white rounded">
+      <div v-if="summary" class="shadow p-3 mb-5 mt-5 bg-light">
 
         <b-row>
           <b-col>
-            <b-form-group label="Runner(s)" label-class="font-weight-bold" label-for="startLeg">
-              <div id="startLeg"> {{ startLegPretty }} </div>
+            <b-form-group label="Runner" label-class="font-weight-bold" label-for="startLeg">
+              <div id="startLeg"> 
+                {{ startLegPretty }} 
+                <b-button v-b-toggle.sidebar variant="link" class="m-0 p-0 pl-1">
+                  <b-icon icon="pencil-square"></b-icon>
+                </b-button>
+              </div>
             </b-form-group>
           </b-col>
 
           <b-col>
             <b-form-group label="Race Start" label-class="font-weight-bold" label-for="teamStartTime">
-              <div id="teamStartTime"> {{ startTimePretty }} </div>
+              <div id="teamStartTime">
+                {{ startTimePretty }}
+                <b-button v-b-toggle.sidebar variant="link" class="m-0 p-0 pl-1">
+                  <b-icon icon="pencil-square"></b-icon>
+                </b-button>
+              </div>
             </b-form-group>
           </b-col>
 
           <b-col>
-            <b-form-group label="Pace Type" label-class="font-weight-bold" label-for="paceType">
-              <div id="paceType"> {{ paceTypes[paceType].text }}</div>
+            <b-form-group label="Pace" label-class="font-weight-bold" label-for="paceType">
+              <div id="paceType">
+                {{ paceTypes[paceType].text }}
+                <b-button v-b-toggle.sidebar variant="link" class="m-0 p-0 pl-1">
+                  <b-icon icon="pencil-square" class="border-info"></b-icon>
+                </b-button>
+              </div>
             </b-form-group>
           </b-col>
         </b-row>
@@ -125,16 +152,16 @@
           <b-col class="font-weight-bold">Diff</b-col>
           <b-col class="font-weight-bold">Start</b-col>
           <b-col class="font-weight-bold">Duration</b-col>
-          <b-col class="font-weight-bold">Nighttime</b-col>
+          <b-col class="font-weight-bold">Vest/Light</b-col>
         </b-row>
 
-        <b-row v-for="(time, index) in times" :class="{'bg-warning' : index%2 === 0}">
+        <b-row v-for="(time, index) in times" :class="{'bg-light' : index%2 === 0}">
           <b-col>{{time.legNum}}</b-col>
           <b-col>{{time.distance}}</b-col>
           <b-col>{{time.difficulty}}</b-col>
           <b-col>{{ time.day}} - {{time.startTime}}</b-col>
           <b-col>{{time.duration}}</b-col>
-          <b-col>{{time.flags.nightRun ? 'Yes' : 'No'}}</b-col>
+          <b-col>{{ `${time.flags.vest ? 'Yes' : 'No'}/${time.flags.flashlight ? 'Yes' : 'No'}` }}</b-col>
         </b-row>
       </div>
     </b-container>

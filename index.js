@@ -12,7 +12,7 @@ const app = new Vue({
     startLeg: 'all',
     startLegs: [],
 
-    finishTime: 27,
+    finishTime: 27.083285,
     finishTimes: [],
 
     startTime: 14.5,
@@ -95,6 +95,12 @@ const app = new Vue({
     startTimePretty: function() {
       return this.makePrettyTime(this.startTime).prettyTime;
     },
+    finishTimePretty: function() {
+      const finishTimeMinutes = this.finishTime * 60;
+      const avgPaceMinutes = finishTimeMinutes / this.static.milesOnCourse;
+      const pace = this.makePrettyPace(avgPaceMinutes, false, false);
+      return `${this.makePrettyPace(finishTimeMinutes)} (${pace}/mi)`;
+    },
     times: function () {
       if (!this.startLeg || !this.startTime || !this.finishTime || !this.paceType) {
         return [];
@@ -149,7 +155,7 @@ const app = new Vue({
       const mins = fullHrs > 0 ? hours % fullHrs * 60 : minsAsDecimal;
       const fullMins = Math.floor(mins);
 
-      const secs = Math.floor(mins % fullMins * 60);
+      const secs = fullMins === 0 ? '0' : Math.floor(mins % fullMins * 60);
 
       const hrsSegment = showHours && fullHrs > 0 ? `${fullHrs === 0 ? '00' : fullHrs}:` : '';
       return `${hrsSegment}${fullMins < 10 && zeroPrefixMins ? `0${fullMins}` : fullMins}:${secs < 10 ? `0${secs}` : secs}`;
@@ -219,12 +225,9 @@ const app = new Vue({
       const { prettyTime, hours } = this.makePrettyTime(finalStartTime);
 
       const flags = {
-        nightRun: false,
+        flashlight: hours >= 18 || hours <= 7,
+        vest: hours >= 18 || hours <= 9,
       };
-
-      if (hours >= 19 || hours < 5) {
-        flags.nightRun = true;
-      }
 
       const leg = this.static.legs[legNum - 1];
       const [_, distance, difficulty] = leg;
